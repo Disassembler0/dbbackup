@@ -1,0 +1,88 @@
+#!/usr/bin/python3
+
+import configparser, io, os, pwd, grp
+from subprocess import Popen, PIPE, DEVNULL
+
+def main():
+    defaults = '''[mysql]
+enabled = 0
+[postgresql]
+enabled = 0
+'''
+
+    config = configparser.RawConfigParser()
+    config.readfp(io.StringIO(defaults))
+    try:
+        config.read('/etc/dbbackup.conf')
+    except:
+        pass
+
+    if config.getboolean('mysql', 'enabled'):
+        backup_databases('MySQL', config.items('mysql'))
+
+    if config.getboolean('postgresql', 'enabled'):
+        backup_databases('PostgreSQL', config.items('postgresql'))
+
+def backup_databases(type, config):
+    conf = {}
+    for tuple in config:
+        conf[tuple[0]] = tuple[1]
+
+    if type == 'MySQL':
+       cmd = ['mysql', '-p{}'.format(conf['rootpwd']), '-sNe', 'SHOW DATABASES']
+    else:
+       cmd = ['su', '-', 'postgres', '-c', 'psql -Atc \'SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn\'']
+    p = Popen(cmd, stdout=PIPE)
+    databases = p.communicate()[0].decode().strip().split()
+    skipdatabases = [x.strip() for x in conf['skipdatabases'].split(',')]
+    databases = list(set(databases) - set(skipdatabases))
+
+    exclude_tables = {}
+    if len(conf['skiptables']) != 0:
+        skiptables = [x.strip() for x in conf['skiptables'].split(',')]
+        for table in skiptables:
+            name = table.split('.')
+            if name[0] not in exclude_tables:
+                exclude_tables[name[0]] = []
+            exclude_tables[name[0]].append(name[1])
+
+    if len(databases) != 0:
+        print('Backing up {} databases'.format(type))
+        for database in databases:
+            excl_tables = exclude_tables[database] if database in exclude_tables else []
+            skiptables = ''
+            if len(excl_tables) != 0:
+                skiptables += ' (excluding table'
+                if len(excl_tables) != 1:
+                    skiptables += 's'
+                skiptables += ' {})'.format(', '.join(excl_tables))
+            print(' - {}{}'.format(database, skiptables))
+
+            if type == 'MySQL':
+                cmd = ['mysqldump', '--skip-dump-date', '-u', 'root', '-p{}'.format(conf['rootpwd'])]
+                for table in excl_tables:
+                    cmd.append('--ignore-table={}.{}'.format(database, table))
+                cmd.append(database)
+            else:
+                sucmd = ['pg_dump']
+                for table in excl_tables:
+                    sucmd.append('--exclude-table-data={}'.format(table))
+                sucmd.append(database)
+                cmd = ['su', '-', 'postgres', '-c', ' '.join(sucmd)]
+            p1 = Popen(cmd, stdout=PIPE)
+            target_filename = os.path.join(conf['target'], '{}.sql.gz'.format(database))
+            with open(target_filename, 'wb') as target_file:
+                p2 = Popen(['gzip', '-c'], stdin=p1.stdout, stdout=target_file)
+                p1.stdout.close()
+                p2.communicate()
+
+    old_backups = [x[:-7] for x in os.listdir(conf['target']) if x.endswith('.sql.gz')]
+    old_backups = list(set(old_backups) - set(databases))
+    if len(old_backups) != 0:
+        print('Removing obsolete {} database backups'.format(type))
+        for old_backup in old_backups:
+            print(' - {}'.format(old_backup))
+            os.remove(os.path.join(conf['target'], '{}.sql.gz'.format(old_backup)))
+
+if __name__ == '__main__':
+    main()
