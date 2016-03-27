@@ -41,7 +41,7 @@ def backup_databases(type, config):
     if len(conf['skiptables']) != 0:
         skiptables = [x.strip() for x in conf['skiptables'].split(',')]
         for table in skiptables:
-            name = table.split('.')
+            name = table.split('.', 1)
             if name[0] not in exclude_tables:
                 exclude_tables[name[0]] = []
             exclude_tables[name[0]].append(name[1])
