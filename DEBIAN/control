@@ -1,9 +1,9 @@
 Package: dbbackup
-Version: 1.0.1
+Version: 1.1.0
 Section: custom
 Priority: optional
 Architecture: all
 Depends: python3
 Installed-Size: 28
 Maintainer: Disassembler
-Description: Script for batch dumping MySQL and PostgreSQL databases
+Description: Script for batch dumping MySQL/MariaDB and PostgreSQL databases
