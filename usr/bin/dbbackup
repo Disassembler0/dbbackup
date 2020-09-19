@@ -49,7 +49,7 @@ def backup_databases(type, config):
 			print(' - {}{}'.format(database, skiptables))
 
 			if type == 'MySQL':
-				cmd = ['mysqldump', '--routines', '--skip-dump-date']
+				cmd = ['mysqldump', '--events', '--routines', '--skip-dump-date']
 				for table in excl_tables:
 					cmd.append('--ignore-table={}.{}'.format(database, table))
 				cmd.append(database)
