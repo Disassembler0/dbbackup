@@ -21,7 +21,7 @@ def backup_databases(type, config):
 	if type == 'MySQL':
 		cmd = ['mysql', '-BNe', 'SHOW DATABASES']
 	else:
-		cmd = ['su', '-', 'postgres', '-c', 'psql -Atc \'SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn\'']
+		cmd = ['su', '-', 'postgres', '-c', 'psql -Aqtc \'SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn\'']
 	p = Popen(cmd, stdout=PIPE)
 	databases = p.communicate()[0].decode().strip().split()
 	skipdatabases = [x.strip() for x in config['skipdatabases'].split(',')]
